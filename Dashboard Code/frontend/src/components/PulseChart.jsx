@@ -15,7 +15,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 function PulseChart({ points }) {
   const [windowSize, setWindowSize] = useState(120);
   const [yMin, setYMin] = useState(40);
-  const [yMax, setYMax] = useState(160);
+  const [yMax, setYMax] = useState(220);
 
   const safeWindow = Math.max(20, Math.min(300, windowSize || 120));
   const trimmedPoints = useMemo(() => points.slice(-safeWindow), [points, safeWindow]);

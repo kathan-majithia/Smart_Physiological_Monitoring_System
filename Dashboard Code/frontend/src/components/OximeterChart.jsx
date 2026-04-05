@@ -14,8 +14,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 function OximeterChart({ points }) {
   const [windowSize, setWindowSize] = useState(120);
-  const [yMin, setYMin] = useState(80);
-  const [yMax, setYMax] = useState(100);
+  const [yMin, setYMin] = useState(60);
+  const [yMax, setYMax] = useState(120);
 
   const safeWindow = Math.max(20, Math.min(300, windowSize || 120));
   const trimmedPoints = useMemo(() => points.slice(-safeWindow), [points, safeWindow]);
