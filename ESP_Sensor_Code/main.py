@@ -6,8 +6,8 @@ import socket
 import json
 import urequests
 
-ssid = "KAMY's Galaxy"
-password = "47474747"
+ssid = "XYZ"
+password = "********"
 
 wifi = network.WLAN(network.STA_IF)
 wifi.active(True)
@@ -18,8 +18,8 @@ while not wifi.isconnected():
 
 print("Connected: ",wifi.ifconfig())
 
-SERVER_IP = "10.14.92.115"
-PORT = 5055
+SERVER_IP = "192.168.x.x"
+PORT = 5000
 
 # -------- SETUP --------
 i2c = I2C(0, scl=Pin(22), sda=Pin(21))
