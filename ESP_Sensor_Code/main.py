@@ -5,9 +5,9 @@ import network
 import urequests
 
 # ---------------- WIFI ----------------
-ssid = "KAMY's Galaxy"
-password = "47474747"
 last_bpm = 0
+ssid = "XYZ"
+password = "********"
 
 wifi = network.WLAN(network.STA_IF)
 wifi.active(True)
@@ -18,7 +18,8 @@ while not wifi.isconnected():
 
 print("Connected:", wifi.ifconfig())
 
-SERVER_URL = "http://10.14.92.61:5000/data"
+SERVER_IP = "192.168.x.x"
+PORT = 5000
 
 # ---------------- ECG SETUP ----------------
 ecg = ADC(Pin(36))
