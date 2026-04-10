@@ -31,10 +31,10 @@ function EcgChart({ points }) {
         data: points,
         borderColor: '#14b8a6',
         backgroundColor: 'rgba(20, 184, 166, 0.18)',
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 0,
         fill: true,
-        tension: 0.25
+        tension: 0.5
       }
     ]
   };
@@ -56,8 +56,8 @@ function EcgChart({ points }) {
         grid: { color: 'rgba(148, 163, 184, 0.15)' }
       },
       y: {
-        min: -2,
-        max: 2,
+        min: 1000,
+        max: 3000,
         ticks: { color: '#cbd5e1' },
         grid: { color: 'rgba(148, 163, 184, 0.15)' }
       }
