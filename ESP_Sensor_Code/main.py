@@ -5,9 +5,9 @@ import network
 import urequests
 
 # ---------------- WIFI ----------------
-last_bpm = 0
-ssid = "XYZ"
+ssid = "Wifi_Name"
 password = "********"
+last_bpm = 0
 
 wifi = network.WLAN(network.STA_IF)
 wifi.active(True)
@@ -18,8 +18,7 @@ while not wifi.isconnected():
 
 print("Connected:", wifi.ifconfig())
 
-SERVER_IP = "192.168.x.x"
-PORT = 5000
+SERVER_URL = "http://129.168.x.x:PORT/data"
 
 # ---------------- ECG SETUP ----------------
 ecg = ADC(Pin(36))
@@ -182,7 +181,7 @@ try:
         if time.ticks_diff(time.ticks_ms(), last_ecg_send) > 1000:
             send_data(bpm if bpm else 0, spo2, ecg_batch)
             ecg_batch = []
-            last_ecg_send = time.ticks_ms()
+            last_ecg_send = time.ticks_ms()  
 
         # ===== SEND BPM/SPO2 SLOW (3 sec) =====
         if bpm and time.ticks_diff(time.ticks_ms(), last_vitals_send) > 3000:
@@ -193,3 +192,4 @@ try:
 
 except KeyboardInterrupt:
     print("\nStopped safely.")
+

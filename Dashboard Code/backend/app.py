@@ -5,6 +5,7 @@ import joblib
 import threading
 from collections import deque
 from scipy import signal
+from scipy.signal import find_peaks, medfilt
 
 app = Flask(__name__)
 CORS(app)
@@ -61,30 +62,98 @@ def bandpass_filter(ecg_signal, lowcut=0.5, highcut=40.0, fs=200, order=4):
     b, a = signal.butter(order, [low, high], btype='band')
     return signal.filtfilt(b, a, ecg_signal)
 
+def notch_filter(ecg_signal, fs=200, notch_freq=50.0, q=30.0):
+    """Removes 50Hz AC mains power line noise."""
+    b, a = signal.iirnotch(notch_freq, q, fs)
+    return signal.filtfilt(b, a, ecg_signal)
+
+
+# def detect_r_peaks(ecg_signal, fs=200):
+#     diff_ecg   = np.diff(ecg_signal)
+#     squared    = diff_ecg ** 2
+#     window_size = int(0.15 * fs)
+#     integrated = np.convolve(squared, np.ones(window_size) / window_size, mode='same')
+
+#     min_distance = int(0.2 * fs)
+#     threshold    = np.mean(integrated) + 0.5 * np.std(integrated)
+
+#     peaks = []
+#     i = 0
+#     while i < len(integrated):
+#         if integrated[i] > threshold:
+#             start = i
+#             while i < len(integrated) and integrated[i] > threshold:
+#                 i += 1
+#             end      = i
+#             peak_idx = start + np.argmax(integrated[start:end])
+#             if not peaks or (peak_idx - peaks[-1]) >= min_distance:
+#                 peaks.append(peak_idx)
+#         i += 1
+#     return np.array(peaks)
+
+# def detect_r_peaks(ecg_signal, fs=200):
+#     """Robust R-peak detection using scipy's find_peaks on filtered data."""
+#     # Since the signal is already bandpass filtered, the baseline wander is mostly gone.
+#     # We can calculate a dynamic threshold based on the signal's actual amplitude.
+#     # R-peaks are usually the highest, sharpest points.
+    
+#     threshold = np.mean(ecg_signal) + 1.5 * np.std(ecg_signal)
+    
+#     # Force the algorithm to ignore fake peaks that are too close together
+#     # 0.4 seconds * 200 Hz = 80 samples. This assumes a max heart rate of 150 BPM.
+#     min_distance = int(0.4 * fs) 
+
+#     # Find the peaks!
+#     peaks, _ = find_peaks(ecg_signal, height=threshold, distance=min_distance)
+    
+#     return np.array(peaks)
+
+# def detect_r_peaks(ecg_signal, fs=200):
+#     """Robust R-peak detection using PROMINENCE on filtered data."""
+#     # Prominence looks for sharp spikes that stand out from their immediate surroundings,
+#     # completely ignoring slow baseline drift.
+    
+#     # A standard prominence threshold for normalized/filtered ECGs.
+#     # We use a fraction of the maximum signal amplitude.
+#     signal_range = np.max(ecg_signal) - np.min(ecg_signal)
+#     dynamic_prominence = signal_range * 0.35  # Must stand out by at least 35% of the total wave height
+    
+#     # 0.4 seconds * 200 Hz = 80 samples (Assumes max 150 BPM)
+#     min_distance = int(0.4 * fs) 
+
+#     # Find peaks using PROMINENCE instead of HEIGHT
+#     peaks, _ = find_peaks(ecg_signal, prominence=dynamic_prominence, distance=min_distance)
+    
+#     return np.array(peaks)
+
+# def detect_r_peaks(ecg_signal, fs=200):
+#     signal_range = np.max(ecg_signal) - np.min(ecg_signal)
+#     # Lowered from 0.35 to 0.20 to catch slightly weaker true heartbeats
+#     dynamic_prominence = signal_range * 0.20  
+#     min_distance = int(0.4 * fs) 
+#     peaks, _ = signal.find_peaks(ecg_signal, prominence=dynamic_prominence, distance=min_distance)
+#     return np.array(peaks)
 
 def detect_r_peaks(ecg_signal, fs=200):
-    diff_ecg   = np.diff(ecg_signal)
-    squared    = diff_ecg ** 2
-    window_size = int(0.15 * fs)
-    integrated = np.convolve(squared, np.ones(window_size) / window_size, mode='same')
-
-    min_distance = int(0.2 * fs)
-    threshold    = np.mean(integrated) + 0.5 * np.std(integrated)
-
-    peaks = []
-    i = 0
-    while i < len(integrated):
-        if integrated[i] > threshold:
-            start = i
-            while i < len(integrated) and integrated[i] > threshold:
-                i += 1
-            end      = i
-            peak_idx = start + np.argmax(integrated[start:end])
-            if not peaks or (peak_idx - peaks[-1]) >= min_distance:
-                peaks.append(peak_idx)
-        i += 1
+    """Robust R-peak detection immune to massive outlier spikes."""
+    
+    # 🔥 NEW: Ignore the massive 4000-level spikes by using the 95th percentile
+    robust_max = np.percentile(ecg_signal, 95)
+    robust_min = np.percentile(ecg_signal, 5)
+    
+    # Calculate the range of the NORMAL wave, ignoring the extremes
+    robust_range = robust_max - robust_min
+    
+    # Now calculate prominence based on the real wave height
+    dynamic_prominence = robust_range * 0.30  
+    
+    # Minimum 0.4 seconds between beats
+    # min_distance = int(0.4 * fs) 
+    min_distance = int(0.55 * fs)
+    
+    peaks, _ = signal.find_peaks(ecg_signal, prominence=dynamic_prominence, distance=min_distance)
+    
     return np.array(peaks)
-
 
 def compute_hrv_features(rr_intervals_ms, spo2=98.0):
     """Compute all 19 features the model expects."""
@@ -115,7 +184,7 @@ def compute_hrv_features(rr_intervals_ms, spo2=98.0):
 
         def band_power(freqs, psd, low, high):
             idx = np.where((freqs >= low) & (freqs < high))[0]
-            return float(np.trapz(psd[idx], freqs[idx])) if len(idx) > 0 else 0.0
+            return float(np.trapezoid(psd[idx], freqs[idx])) if len(idx) > 0 else 0.0
 
         vlf_power   = band_power(freqs, psd, 0.003, 0.04)
         lf_power    = band_power(freqs, psd, 0.04,  0.15)
@@ -137,19 +206,19 @@ def compute_hrv_features(rr_intervals_ms, spo2=98.0):
 
     # ── Return in exact FEATURE_NAMES order ───────────────────────────────
     return {
-        "mean_rr":       mean_rr,
-        "mean_hr":       mean_hr,
+        "mean_rr":       mean_rr, # Time between two heartbeat (ms)
+        "mean_hr":       mean_hr, # Average BPM
         "cv_rr":         cv_rr,
-        "nn50":          nn50,
-        "hf_power":      hf_power,
-        "pnn50":         pnn50,
+        "nn50":          nn50, # Number of heartbeat that differ more than 50ms
+        "hf_power":      hf_power, # High frequency (relax)
+        "pnn50":         pnn50, # Percentage of nn50 in total heartbeat
         "sd2":           sd2,
-        "vlf_power":     vlf_power,
-        "total_power":   total_power,
+        "vlf_power":     vlf_power, # Very low frequency
+        "total_power":   total_power,# (VLF + LF + HF)
         "sdnn":          sdnn,
         "sdsd":          sdsd,
         "sd1":           sd1,
-        "lf_power":      lf_power,
+        "lf_power":      lf_power, # Low frequency (stress)
         "rmssd":         rmssd,
         "sd1_sd2_ratio": sd1_sd2_ratio,
         "lf_hf_ratio":   lf_hf_ratio,
@@ -162,7 +231,8 @@ def compute_hrv_features(rr_intervals_ms, spo2=98.0):
 def run_prediction(ecg_array, spo2_val):
     """Raw ECG window → stress label + confidence."""
     # 1. Filter
-    ecg_clean = bandpass_filter(ecg_array, fs=ECG_SAMPLE_RATE)
+    ecg_notched = notch_filter(ecg_array, fs=ECG_SAMPLE_RATE, notch_freq=50.0)
+    ecg_clean = bandpass_filter(ecg_notched, fs=ECG_SAMPLE_RATE)
 
     # 2. R-peaks
     r_peaks = detect_r_peaks(ecg_clean, fs=ECG_SAMPLE_RATE)
@@ -172,19 +242,36 @@ def run_prediction(ecg_array, spo2_val):
 
     # 3. RR intervals (ms), remove physiologically impossible values
     rr_intervals = np.diff(r_peaks) / ECG_SAMPLE_RATE * 1000.0
-    rr_intervals = rr_intervals[(rr_intervals > 300) & (rr_intervals < 2000)]
+    median_rr = np.median(rr_intervals)
+    rr_intervals = rr_intervals[np.abs(rr_intervals - median_rr) < (0.25 * median_rr)]
+    # rr_intervals = rr_intervals[(rr_intervals > 300) & (rr_intervals < 2000)]
     if len(rr_intervals) < 3:
         print("⚠️  Not enough valid RR intervals")
         return None, None
 
+    rr_intervals = medfilt(rr_intervals, kernel_size=3)
     # 4. Extract features
     features = compute_hrv_features(rr_intervals, spo2=spo2_val)
     if features is None:
         return None, None
 
+    # For debug
+    print("\nRaw Feature Diagnostics")
+    print("Mean HR: (60 - 100) normal : ",features['mean_hr'])
+    print("SDNN: (30 - 150) normal : ",features['sdnn'])
+    print("LF/HF Ratio: (0.5 - 2.0) normal : ",features['lf_hf_ratio'])
+    print("SpO2 : ",features['spo2'])
+    print("\nRAW RR Array : ",np.round(rr_intervals,1))
+    print("------------------------------\n")
+
     # 5. Build vector in exact training order
     X        = np.array([[features[f] for f in FEATURE_NAMES]])
     X_scaled = scaler.transform(X)
+
+    print("--------------------")
+    print("X : ",X)
+    print("X_scaled : ",X_scaled)
+    print("-------------------\n")
 
     # 6. Predict
     pred       = model.predict(X_scaled)[0]

@@ -56,8 +56,8 @@ function EcgChart({ points }) {
         grid: { color: 'rgba(148, 163, 184, 0.15)' }
       },
       y: {
-        min: 1000,
-        max: 3000,
+        min: 0,
+        max: 5000,
         ticks: { color: '#cbd5e1' },
         grid: { color: 'rgba(148, 163, 184, 0.15)' }
       }
